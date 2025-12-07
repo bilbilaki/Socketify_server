@@ -1,0 +1,20 @@
+# Name of the generated Dart class
+name: PortForwardLibrary
+
+# Description for the generated file
+description: Bindings for PortForward Go shared library.
+
+# Path where the generated Dart file will be saved
+output: 'lib/generated_bindings_for_portforward.dart'
+
+# The C header files to scan
+headers:
+  entry-points:
+    - 'native/portforward.h'
+  include-directives:
+    - 'native/portforward.h'
+
+# Comments settings
+comments:
+  style: any
+  length: full

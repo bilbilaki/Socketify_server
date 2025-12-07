@@ -1,0 +1,37 @@
+name: server
+description: A sample command-line application.
+version: 1.0.0
+# repository: https://github.com/my_org/my_repo
+
+environment:
+  sdk: ^3.10.1
+
+# Add regular dependencies here.
+dependencies:
+  args: ^2.7.0
+  ffi: ^2.1.4
+  flutter_blue_plus: ^2.0.2
+  flutter_blue_plus_windows: ^1.16.0
+  path: ^1.9.0
+  shelf: ^1.4.2
+  shelf_web_socket: ^3.0.0
+  web_socket_channel: ^3.0.3
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6
+  ffigen: ^20.1.1
+
+ffigen:
+  # Name of the generated class
+  name: PortForwardLibrary
+  # Description for the generated file
+  description: Bindings for the PortForwardLibrary.
+  # Output file for the generated bindings
+  output: 'lib/generated_bindings_for_portforward.dart'
+  # The C header file to parse
+  headers:
+    entry-points:
+      - 'server\native\portforward.h'
+  # Optional: Add a preamble to the generated file to ignore lint warnings
+  preamble: |

@@ -1,0 +1,20 @@
+# Name of the generated Dart class
+name: Socks5V2Library
+
+# Description for the generated file
+description: Bindings for Socks5V2 Go shared library.
+
+# Path where the generated Dart file will be saved
+output: 'lib/bindings/generated_bindings_for_socks5v2.dart'
+
+# The C header files to scan
+headers:
+  entry-points:
+    - 'native/socks5lib2.h'
+  include-directives:
+    - 'native/socks5lib2.h'
+
+# Comments settings
+comments:
+  style: any
+  length: full

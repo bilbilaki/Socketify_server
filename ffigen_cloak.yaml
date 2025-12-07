@@ -1,0 +1,20 @@
+# Name of the generated Dart class
+name: CloakLibrary
+
+# Description for the generated file
+description: Bindings for Cloak Server Go shared library.
+
+# Path where the generated Dart file will be saved
+output: 'lib/bindings/generated_bindings_for_cloak.dart'
+
+# The C header files to scan
+headers:
+  entry-points:
+    - 'native/cloaklib.h'
+  include-directives:
+    - 'native/cloaklib.h'
+
+# Comments settings
+comments:
+  style: any
+  length: full

@@ -44,7 +44,7 @@ class WebSocketTransport with TransportMixin implements TransportInterface {
   @override
   Future<void> startServer({Map<String, dynamic>? config}) async {
     _serverPort = config? ['port'] ?? 8765;
-    _serverHost = config?['host'] ??  '0.0.0. 0';
+    _serverHost = config?['host'] ??  '0.0.0.0';
     
     try {
       _state = TransportState. connecting;

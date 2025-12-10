@@ -34,7 +34,7 @@ void main(List<String> arguments) async {
     print("Echo server started");
   });
 
-  server.SentinelService().initialize();
+ // server.SentinelService().initialize();
 }
 
 wsHandler(WebSocket ws) {

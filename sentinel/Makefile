@@ -16,8 +16,8 @@ OUTDIR := build
 NDK_BIN := $(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin
 
 # Common build flags
-LDFLAGS := -s -w -X main.Version=$(VERSION)
-BUILDFLAGS := -trimpath -ldflags="$(LDFLAGS)"
+LDFLAGS := -s -w -X main.Version=v1.0.0
+BUILDFLAGS := -trimpath -ldflags="-s -w -X main.Version=v1.0.0"
 
 # Default target
 all: linux-amd64

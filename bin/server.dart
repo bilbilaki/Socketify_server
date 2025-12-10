@@ -21,15 +21,18 @@ void main(List<String> arguments) async {
   //   print('Usage: dart bin/server.dart [run|install|uninstall]');
   //   exit(1);
   // }
-  // HttpServer.bind('0.0.0.0', 8080).then((HttpServer server) {
-  //   server
-  //       .where((request) => request.uri.path == '/ws')
-  //       .transform(new WebSocketTransformer())
-  //       .listen((WebSocket ws) {
-  //         wsHandler(ws);
-  //       });
-  //   print("Echo server started");
-  // });
+  final remote = server.DesktopServer();
+  await remote.initialize();
+  remote.start();
+  HttpServer.bind('0.0.0.0', 8080).then((HttpServer server) {
+    server
+        .where((request) => request.uri.path == '/ws')
+        .transform(new WebSocketTransformer())
+        .listen((WebSocket ws) {
+          wsHandler(ws);
+        });
+    print("Echo server started");
+  });
 
   server.SentinelService().initialize();
 }

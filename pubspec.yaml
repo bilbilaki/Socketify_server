@@ -9,6 +9,7 @@ environment:
 # Add regular dependencies here.
 dependencies:
   args: ^2.7.0
+  commander_ui: ^2.4.0
   ffi: ^2.1.4
   flutter_blue_plus: ^2.0.2
   flutter_blue_plus_windows: ^1.16.0

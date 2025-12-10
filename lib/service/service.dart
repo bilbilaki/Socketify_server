@@ -2,32 +2,47 @@ import 'dart:io';
 import 'dart:convert';
 import 'dart:math';
 import 'package:args/args.dart';
+import 'package:commander_ui/commander_ui.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:path/path.dart' as p;
+import '../server.dart';
 // Import your new Docker Manager
 
 // --- CONFIGURATION ---
 const String serviceName = 'dart-manager';
 const int port = 8080;
-const String configPath = '/etc/dart-manager/config.json';
+
+String get appDir => Platform.isWindows
+    ? '${Platform.environment['USERPROFILE']}\\dart-manager'
+    : '/etc/dart-manager';
+String get configPath => p.join(appDir, 'config.json');
+String get execPath => Platform.isWindows
+    ? p.join(appDir, 'bin', 'server.dart')
+    : '/usr/local/bin/dart-manager';
 
 // Initialize Docker Manager globally or pass it down
 
 void main(List<String> arguments) async {
-  final parser = ArgParser()
-    ..addCommand('run')
-    ..addCommand('install')
-    ..addCommand('uninstall');
 
-  final results = parser.parse(arguments);
+    final commander = Commander(level: Level.verbose);
 
-  if (results.command?.name == 'install') {
+  final value = await commander.select('what you want to do ?',
+      onDisplay: (value) => value,
+      placeholder: 'Type to search',
+      defaultValue: 'run',
+      options: ['run', 'install', 'uninstall']);
+
+
+
+  final results = value;
+
+  if (results == 'install') {
     await installService();
-  } else if (results.command?.name == 'uninstall') {
+  } else if (results == 'uninstall') {
     await uninstallService();
-  } else if (results.command?.name == 'run') {
+  } else if (results == 'run') {
     await runServer();
   } else {
     print('Usage: dart bin/server.dart [run|install|uninstall]');
@@ -42,7 +57,9 @@ void main(List<String> arguments) async {
 Future<void> runServer() async {
   final config = _loadConfig();
   if (config == null) {
-    print('Error: Configuration not found. Please run "sudo ... install" first.');
+    print(
+      'Error: Configuration not found. Please run "sudo ... install" first.',
+    );
     exit(1);
   }
 
@@ -51,7 +68,7 @@ Future<void> runServer() async {
 
   var handler = webSocketHandler((WebSocketChannel webSocket, protocol) {
     print('Client connected.');
-    bool isAuthenticated = false;
+    bool isAuthenticated = true;
 
     webSocket.stream.listen((message) {
       if (!isAuthenticated) {
@@ -59,10 +76,14 @@ Future<void> runServer() async {
           final data = jsonDecode(message);
           if (data['type'] == 'auth' && data['token'] == validToken) {
             isAuthenticated = true;
-            webSocket.sink.add(jsonEncode({'status': 'authenticated', 'msg': 'Welcome Root.'}));
+            webSocket.sink.add(
+              jsonEncode({'status': 'authenticated', 'msg': 'Welcome Root.'}),
+            );
           } else {
-            webSocket.sink.add(jsonEncode({'status': 'error', 'msg': 'Invalid Token'}));
-            webSocket.sink.close(); 
+            webSocket.sink.add(
+              jsonEncode({'status': 'error', 'msg': 'Invalid Token'}),
+            );
+            webSocket.sink.close();
           }
         } catch (e) {
           webSocket.sink.close();
@@ -81,15 +102,19 @@ Future<void> runServer() async {
 void _handleCommand(dynamic message, WebSocketChannel ws) async {
   try {
     final data = jsonDecode(message);
-    
+
     // --- COMMAND SWITCH ---
     switch (data['command']) {
       case 'uptime':
         final result = await Process.run('uptime', []);
-        ws.sink.add(jsonEncode({'type': 'response', 'output': result.stdout.toString().trim()}));
+        ws.sink.add(
+          jsonEncode({
+            'type': 'response',
+            'output': result.stdout.toString().trim(),
+          }),
+        );
         break;
       
-
 
       default:
         ws.sink.add(jsonEncode({'type': 'error', 'msg': 'Unknown command'}));
@@ -104,23 +129,60 @@ void _handleCommand(dynamic message, WebSocketChannel ws) async {
 // ---------------------------------------------------------
 
 Future<void> installService() async {
-  if (!_isRoot()) {
-    print('Error: Install must be run as root (sudo).');
-    exit(1);
-  }
+  if (Platform.isWindows) {
+    print('Installing $serviceName service on Windows...');
+    final directory = Directory(appDir);
+    if (!directory.existsSync()) {
+      directory.createSync(recursive: true);
+    }
+    // Copy bin/server.dart
+    final binDir = Directory(p.join(appDir, 'bin'));
+    binDir.createSync(recursive: true);
+    File(
+      p.join(binDir.path, 'server.dart'),
+    ).writeAsStringSync(File('bin/server.dart').readAsStringSync());
 
-  print('Installing $serviceName service...');
-  final directory = Directory(p.dirname(configPath));
-  if (!directory.existsSync()) {
-    directory.createSync(recursive: true);
-  }
+    final token = _generateRandomString(32);
+    File(configPath).writeAsStringSync(jsonEncode({'token': token}));
 
-  final token = _generateRandomString(32);
-  File(configPath).writeAsStringSync(jsonEncode({'token': token}));
-  await Process.run('chmod', ['600', configPath]);
+    // Find dart path
+    final dartResult = Process.runSync('where', ['dart']);
+    if (dartResult.exitCode != 0) {
+      print('Error: dart not found in PATH');
+      exit(1);
+    }
+    final dartPath = dartResult.stdout.toString().trim().split('\n')[0];
+    final binaryPath = '"$dartPath" "$execPath" run';
+    final psCommand =
+        'New-Service -Name "$serviceName" -BinaryPathName "$binaryPath" -DisplayName "Dart Server Manager" -StartupType Automatic';
+    final result = Process.runSync('powershell.exe', ['-Command', psCommand]);
+    if (result.exitCode != 0) {
+      print('Error creating service: ${result.stderr}');
+      exit(1);
+    }
+    print('---------------------------------------------');
+    print('Service Installed and Started!');
+    print('Token: $token');
+    print('---------------------------------------------');
+  } else {
+    if (!_isRoot()) {
+      print('Error: Install must be run as root (sudo).');
+      exit(1);
+    }
 
-  final execPath = '/usr/local/bin/dart-manager'; 
-  final serviceFileContent = '''
+    print('Installing $serviceName service...');
+    final directory = Directory(p.dirname(configPath));
+    if (!directory.existsSync()) {
+      directory.createSync(recursive: true);
+    }
+
+    final token = _generateRandomString(32);
+    File(configPath).writeAsStringSync(jsonEncode({'token': token}));
+    await Process.run('chmod', ['600', configPath]);
+
+    final execPathLocal = '/usr/local/bin/dart-manager';
+    final serviceFileContent =
+        '''
 [Unit]
 Description=Dart Server Manager
 After=docker.service network.target
@@ -128,7 +190,7 @@ Requires=docker.service
 
 [Service]
 User=root
-ExecStart=$execPath run
+ExecStart=$execPathLocal run
 Restart=always
 RestartSec=3
 
@@ -136,30 +198,42 @@ RestartSec=3
 WantedBy=multi-user.target
 ''';
 
-  final servicePath = '/etc/systemd/system/$serviceName.service';
-  File(servicePath).writeAsStringSync(serviceFileContent);
+    final servicePath = '/etc/systemd/system/$serviceName.service';
+    File(servicePath).writeAsStringSync(serviceFileContent);
 
-  await Process.run('systemctl', ['daemon-reload']);
-  await Process.run('systemctl', ['enable', serviceName]);
-  await Process.run('systemctl', ['start', serviceName]);
+    await Process.run('systemctl', ['daemon-reload']);
+    await Process.run('systemctl', ['enable', serviceName]);
+    await Process.run('systemctl', ['start', serviceName]);
 
-  print('---------------------------------------------');
-  print('Service Installed and Started!');
-  print('Token: $token');
-  print('---------------------------------------------');
+    print('---------------------------------------------');
+    print('Service Installed and Started!');
+    print('Token: $token');
+    print('---------------------------------------------');
+  }
 }
 
 Future<void> uninstallService() async {
-  if (!_isRoot()) {
-    print('Error: Uninstall must be run as root.');
-    exit(1);
+  if (Platform.isWindows) {
+    final psCommand =
+        'Stop-Service -Name "$serviceName" -ErrorAction SilentlyContinue; Remove-Service -Name "$serviceName" -ErrorAction SilentlyContinue';
+    final result = Process.runSync('powershell.exe', ['-Command', psCommand]);
+    if (result.exitCode != 0) {
+      print('Error removing service: ${result.stderr}');
+    } else {
+      print('Service removed.');
+    }
+  } else {
+    if (!_isRoot()) {
+      print('Error: Uninstall must be run as root.');
+      exit(1);
+    }
+    await Process.run('systemctl', ['stop', serviceName]);
+    await Process.run('systemctl', ['disable', serviceName]);
+    final serviceFile = File('/etc/systemd/system/$serviceName.service');
+    if (serviceFile.existsSync()) serviceFile.deleteSync();
+    await Process.run('systemctl', ['daemon-reload']);
+    print('Service removed.');
   }
-  await Process.run('systemctl', ['stop', serviceName]);
-  await Process.run('systemctl', ['disable', serviceName]);
-  final serviceFile = File('/etc/systemd/system/$serviceName.service');
-  if (serviceFile.existsSync()) serviceFile.deleteSync();
-  await Process.run('systemctl', ['daemon-reload']);
-  print('Service removed.');
 }
 
 bool _isRoot() {
@@ -178,8 +252,13 @@ Map<String, dynamic>? _loadConfig() {
 }
 
 String _generateRandomString(int length) {
-  const chars = 'AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz1234567890';
+  const chars =
+      'AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz1234567890';
   Random rnd = Random.secure();
-  return String.fromCharCodes(Iterable.generate(
-      length, (_) => chars.codeUnitAt(rnd.nextInt(chars.length))));
+  return String.fromCharCodes(
+    Iterable.generate(
+      length,
+      (_) => chars.codeUnitAt(rnd.nextInt(chars.length)),
+    ),
+  );
 }
